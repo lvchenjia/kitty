@@ -52,6 +52,13 @@ def start_desktop():
     # 将日志句柄挂载到 desktop，方便它记录鼠标轨迹
     desktop.log_message = log_message
     
+    # 初始化比例校准系数 (标准 monospace 字体默认为 4.0 最佳)
+    cols_multiplier = 4.0
+    
+    window_terminal.terminal_history.append("USE '+' OR '-' TO DYNAMICALLY CALIBRATE")
+    window_terminal.terminal_history.append("THE PHYSICAL ASPECT RATIO OF THE DIAL!")
+    window_terminal.terminal_history.append("")
+
     frame_buffer = bytearray(BUFFER_SIZE)
 
     try:
@@ -68,16 +75,15 @@ def start_desktop():
             except OSError:
                 columns, rows = 120, 40
 
-            # 黄金比例缩放约束：每行物理高度约为宽度的 2 倍
-            # 列数 : 行数 = 3.5 : 1 => 呈现物理完美的 16:9 比例画面
+            # 黄金比例缩放约束：使用 cols_multiplier 动态校准列数以达到绝对圆圆盘
             target_rows = min(rows - 6, 26)
             if target_rows < 12:
                 target_rows = 12
-            target_cols = int(target_rows * 3.5)
+            target_cols = int(target_rows * cols_multiplier)
             
             if target_cols > columns - 4:
                 target_cols = columns - 4
-                target_rows = int(target_cols / 3.5)
+                target_rows = int(target_cols / cols_multiplier)
                 
             start_row = 3
             start_col = max(1, (columns - target_cols) // 2)
@@ -101,6 +107,18 @@ def start_desktop():
 
             # 6. 获取并过滤纯文本键盘字符，流式分发至顶层聚焦的终端窗口
             clean_keys = ansi_escape.sub('', raw_input_data)
+            
+            # 解析比例微调专用热键 (加减号)
+            if clean_keys:
+                if '+' in clean_keys or '=' in clean_keys:
+                    cols_multiplier = min(6.0, cols_multiplier + 0.1)
+                    window_terminal.terminal_history.append(f"CALIBRATE: COLS RATIO -> {cols_multiplier:.1f}")
+                    log_message(f"Ratio calibrated manually to: {cols_multiplier:.2f}")
+                elif '-' in clean_keys or '_' in clean_keys:
+                    cols_multiplier = max(2.0, cols_multiplier - 0.1)
+                    window_terminal.terminal_history.append(f"CALIBRATE: COLS RATIO -> {cols_multiplier:.1f}")
+                    log_message(f"Ratio calibrated manually to: {cols_multiplier:.2f}")
+
             focused_win = None
             for win in reversed(desktop.windows):
                 if win.visible:
@@ -108,14 +126,17 @@ def start_desktop():
                     break
                     
             if focused_win == window_terminal and window_terminal.visible and clean_keys:
-                window_terminal.handle_keyboard(clean_keys, desktop)
+                # 排除加减号，以避免输入框内出现加减字样
+                filtered_keys = "".join([c for c in clean_keys if c not in ('+', '=', '-', '_')])
+                if filtered_keys:
+                    window_terminal.handle_keyboard(filtered_keys, desktop)
 
             # 7. 解析 SGR 鼠标动作指令
             matches = sgr_pattern.findall(raw_input_data)
             if matches:
                 desktop.handle_mouse(matches, start_col, start_row, target_cols, target_rows)
 
-            # 8. 图层合并渲染
+            # 8. 图层阻尼滑动缓动与合并渲染
             desktop.render_all(frame_buffer)
 
             # 9. PNG 帧无损极速压缩并传输至显示层
