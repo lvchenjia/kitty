@@ -1,0 +1,11 @@
+# Compiled C binaries
+pixel_donut
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# System files
+.DS_Store
+Thumbs.db
