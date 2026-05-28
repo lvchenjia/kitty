@@ -2,9 +2,9 @@
 
 一个基于 **Kitty 终端图形协议** 和传统字符终端的 **3D 实时渲染图形学与窗口管理器系统**。
 
-## 🎬 演示视频 (Demo)
+## 🎬 Kitty 协议演示
 
-https://github.com/user-attachments/assets/21178e5b-ddb3-4f15-94a8-1dffffc23878
+<video src="https://github.com/user-attachments/assets/21178e5b-ddb3-4f15-94a8-1dffffc23878" controls autoplay loop muted width="100%"></video>
 
 
 ## 📂 核心功能与文件
