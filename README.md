@@ -22,6 +22,10 @@
     *   **类型**：C 语言源文件
     *   **作用**：高性能 C 语言版本的 3D 甜甜圈渲染程序。利用系统级 `zlib` 物理压缩及 Base64 编码，实现流畅稳定的 60 FPS 渲染。内置双光源半兰伯特、Blinn-Phong 镜面高光和菲涅尔边缘光，支持按**空格键**在 **电影级黏土 (Clay)** 和 **水晶玻璃 (Glass)** 双材质之间实时切换。
 
+*   **`interactive_gui.py`**
+    *   **类型**：Python 脚本
+    *   **作用**：基于 Kitty 终端图像协议与 SGR 鼠标报告协议的**交互式像素画板 GUI 应用程序**。玩家可通过鼠标点击调色板选择颜色，在 16x16 的像素画布上拖拽绘制像素画，支持 **UNDO (撤销)**、**CLR (清空)**、**SAVE (导出 256x256 高品质 PNG)**、**FILL (填充颜色)** 以及优雅退出 (EXIT)，全无闪烁，带响应式状态消息指示。
+
 *   **`.gitignore`**
     *   **类型**：Git 配置文件
     *   **作用**：配置 Git 忽略编译生成的二进制文件 `pixel_donut`、macOS 系统残留 `.DS_Store` 以及 Python 缓存目录 `__pycache__/`。
@@ -32,6 +36,9 @@
 
 ### 1. 运行 Python 文件（零依赖）
 ```bash
+# 运行交互式像素画板 GUI 应用 (需支持 Kitty 协议的终端，可鼠标点击和拖拽交互)
+python3 interactive_gui.py
+
 # 运行字符版立方体
 python3 cube.py
 
@@ -50,4 +57,4 @@ gcc -O3 pixel_donut.c -o pixel_donut -lm -lz
 # 运行
 ./pixel_donut
 ```
-*(注：像素版本 `pixel_` 需在 Kitty、WezTerm、Ghostty 等支持 Kitty 图像协议的终端下运行，否则可能会显示 Base64 乱码。)*
+*(注：所有像素级及交互式图形程序 `pixel_` / `interactive_` 均需在 Kitty、WezTerm、Ghostty 等支持 Kitty 图像协议的终端下运行，否则可能会显示 Base64 乱码。)*
