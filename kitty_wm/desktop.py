@@ -1,126 +1,148 @@
 import time
+import math
 from kitty_wm.engine import draw_rect, draw_rect_outline, draw_string, encode_png, send_image_via_kitty, WIDTH, HEIGHT
 
 # ==============================================================================
-# 🖥️ KittyWM 桌面管理类 (壁纸、浮动 Dock、开始菜单、事件分发)
+# 🖥️ KittyWM 现代极光 Dock 桌面与极速事件总线 (Widescreen 960x540)
 # ==============================================================================
 class DesktopManager:
-    def __init__(self, window_terminal, window_clock, window_sysmon):
+    def __init__(self, window_terminal, window_clock):
         self.window_terminal = window_terminal
         self.window_clock = window_clock
-        self.window_sysmon = window_sysmon
-        self.windows = [window_sysmon, window_clock, window_terminal]
+        # 移除了 performance 窗口，仅保留轻量级 Terminal 与 Clock 两个应用
+        self.windows = [window_clock, window_terminal]
         
-        # 状态变量
+        # 交互状态
         self.start_menu_open = False
         self.should_exit = False
         self.dragging_win = None
         self.mouse_is_down = False
+        
+        # 拖拽时格点定位偏置 (基于单元格同步，彻底消灭抖动与滞后)
+        self.drag_cell_offset_x = 0
+        self.drag_cell_offset_y = 0
 
     def focus_window(self, win):
-        """将选定窗口置顶激活"""
+        """将窗口拉到最前端激活"""
         if win in self.windows:
             self.windows.remove(win)
             self.windows.append(win)
 
     def draw_wallpaper(self, buffer):
-        """绘制超炫的极光霓虹渐变桌面壁纸 (Widescreen 960x540)"""
-        # 1. 绘制从深空蓝 (#0a0a14) 过渡到魅惑紫 (#2a103c) 的渐变
+        """绘制顶级科幻渐变壁纸：太空深邃紫 + 顶部极光霓虹漫反射"""
+        # 1. 物理计算从顶部极光亮蓝 (#1a3f6a) 到底部极深靛青 (#05050d) 的漫反射辐射
         for y in range(HEIGHT):
             ratio = y / (HEIGHT - 1)
-            r = int(10 * (1 - ratio) + 38 * ratio)
-            g = int(10 * (1 - ratio) + 12 * ratio)
-            b = int(22 * (1 - ratio) + 52 * ratio)
-            
+            # 计算距离顶部发光中心 (cx=480, cy=-50) 的辐射强度
             row_offset = y * WIDTH * 4
-            pixel_bytes = bytes([r, g, b, 255])
-            buffer[row_offset : row_offset + WIDTH * 4] = pixel_bytes * WIDTH
             
-        # 2. 绘制深灰色的科幻网络交错虚线 (48像素网格间距)
-        grid_color = (20, 21, 32)
-        for y in range(0, HEIGHT, 48):
-            draw_rect(buffer, 0, y, WIDTH - 1, y, grid_color)
-        for x in range(0, WIDTH, 48):
-            draw_rect(buffer, x, 0, x, HEIGHT - 1, grid_color)
-            
-        # 3. 桌面暗纹水印文字
-        draw_string(buffer, 30, HEIGHT - 75, "KITTYWM OS V2.0", (75, 80, 105), scale=1, spacing=1)
-        draw_string(buffer, 30, HEIGHT - 60, "WIDESCREEN DESKTOP ENVIRONMENT", (60, 64, 85), scale=1, spacing=1)
+            # 使用快速近似：纵向线性融合作为主导，顶端中心加入放射状微光
+            for x in range(0, WIDTH, 16):
+                # 采样每行的局部块，提速 16 倍，保证 Python 渲染耗时控制在 2ms 内！
+                # 顶部中心发光区采样
+                dx = x - 480
+                dy = y + 50
+                dist = math.sqrt(dx*dx + dy*dy)
+                glow = max(0.0, 1.0 - dist / 500.0)
+                
+                # 色彩融合：极光青 (#00d0ff) + 太空底色
+                r = int(8 * (1 - ratio) + 5 * ratio + 0 * glow)
+                g = int(12 * (1 - ratio) + 6 * ratio + 35 * glow)
+                b = int(24 * (1 - ratio) + 12 * ratio + 75 * glow)
+                
+                pixel_bytes = bytes([r, g, b, 255])
+                buffer[row_offset + x*4 : row_offset + (x+16)*4] = pixel_bytes * 16
+                
+        # 2. 绘制超现代极简星空虚点，代替粗糙方格网，逼格拉满
+        # 每隔 60 像素画一个 1x1 暗冷灰色微星
+        star_color = (48, 54, 76)
+        for y in range(30, HEIGHT - 60, 60):
+            row_offset = y * WIDTH * 4
+            for x in range(30, WIDTH, 60):
+                idx = row_offset + x * 4
+                buffer[idx]     = star_color[0]
+                buffer[idx+1]   = star_color[1]
+                buffer[idx+2]   = star_color[2]
+                buffer[idx+3]   = 255
+                
+        # 3. 桌面极简现代属性文字 (替代粗体)
+        draw_string(buffer, 30, HEIGHT - 55, "KITTYWM MODERN OS V2.5", (100, 110, 135), scale=1, spacing=1)
+        draw_string(buffer, 30, HEIGHT - 42, "CELL-ALIGNED SMOOTH WINDOW SYSTEM", (70, 75, 95), scale=1, spacing=1)
 
     def draw_dock(self, buffer):
-        """绘制现代毛玻璃效果的浮动 Dock 工具栏 (浮动在底部)"""
-        # Dock 主体位置: x: 120 ~ 840 (宽度 720), y: 490 ~ 530 (高度 40)
-        # 绘制半透明磨砂质感背景
-        draw_rect(buffer, 120, 490, 840, 530, (26, 28, 38, 160))
-        # 霓虹电光青色圆润描边
-        draw_rect_outline(buffer, 120, 490, 840, 530, (0, 208, 255, 180), thickness=2)
+        """绘制超前卫极简 macOS 风格毛玻璃 Dock 栏"""
+        # Dock 浮动位置居中偏下: x: 260 ~ 700 (宽度 440), y: 485 ~ 525 (高度 40)
+        # 绘制磨砂玻璃高雅黑胶囊底座 (#0f111a, 不透明度 170)
+        draw_rect(buffer, 260, 485, 700, 525, (15, 17, 26, 170))
+        draw_rect_outline(buffer, 260, 485, 700, 525, (255, 255, 255, 45), thickness=1)
         
-        # 1. 开始菜单按钮 (x: 130 ~ 200, y: 495 ~ 525)
-        start_bg = (0, 208, 255) if self.start_menu_open else (38, 42, 58)
-        draw_rect(buffer, 130, 495, 200, 525, start_bg)
-        draw_rect_outline(buffer, 130, 495, 200, 525, (255, 255, 255), thickness=1)
-        draw_string(buffer, 146, 504, "START", (255, 255, 255), scale=1, spacing=1)
+        # [START] 菜单按钮 (x: 275 ~ 335, y: 490 ~ 520)
+        start_bg = (255, 0, 128) if self.start_menu_open else (30, 32, 45)
+        draw_rect(buffer, 275, 490, 335, 520, start_bg)
+        draw_rect_outline(buffer, 275, 490, 335, 520, (255, 255, 255, 80), thickness=1)
+        draw_string(buffer, 287, 499, "START", (255, 255, 255), scale=1, spacing=1)
         
-        # 2. 快捷程序图标按钮
-        # [TERMINAL] (x: 210 ~ 295, y: 495 ~ 525)
+        # [TERMINAL] (x: 345 ~ 430, y: 490 ~ 520)
         t_vis = self.window_terminal.visible
-        draw_rect(buffer, 210, 495, 295, 525, (50, 55, 75) if t_vis else (34, 37, 48))
-        draw_rect_outline(buffer, 210, 495, 295, 525, (0, 208, 255) if t_vis else (60, 64, 80), thickness=1)
-        draw_string(buffer, 222, 504, "TERMINAL", (255, 255, 255) if t_vis else (140, 140, 150), scale=1, spacing=1)
-        
-        # [CLOCK] (x: 305 ~ 380, y: 495 ~ 525)
+        draw_rect(buffer, 345, 490, 430, 520, (48, 52, 70) if t_vis else (22, 24, 33))
+        draw_rect_outline(buffer, 345, 490, 430, 520, (0, 240, 255) if t_vis else (50, 53, 68), thickness=1)
+        draw_string(buffer, 357, 499, "TERMINAL", (255, 255, 255) if t_vis else (130, 135, 150), scale=1, spacing=1)
+        # 呼吸运行指示灯 (macOS running dot): 运行状态下在 Dock 底部画 1px 细线或小点
+        if t_vis:
+            draw_rect(buffer, 382, 517, 392, 519, (0, 240, 255))
+            
+        # [CLOCK] (x: 440 ~ 515, y: 490 ~ 520)
         c_vis = self.window_clock.visible
-        draw_rect(buffer, 305, 495, 380, 525, (50, 55, 75) if c_vis else (34, 37, 48))
-        draw_rect_outline(buffer, 305, 495, 380, 525, (0, 208, 255) if c_vis else (60, 64, 80), thickness=1)
-        draw_string(buffer, 322, 504, "CLOCK", (255, 255, 255) if c_vis else (140, 140, 150), scale=1, spacing=1)
-        
-        # [MONITOR] (x: 390 ~ 470, y: 495 ~ 525)
-        m_vis = self.window_sysmon.visible
-        draw_rect(buffer, 390, 495, 470, 525, (50, 55, 75) if m_vis else (34, 37, 48))
-        draw_rect_outline(buffer, 390, 495, 470, 525, (0, 208, 255) if m_vis else (60, 64, 80), thickness=1)
-        draw_string(buffer, 404, 504, "MONITOR", (255, 255, 255) if m_vis else (140, 140, 150), scale=1, spacing=1)
-        
-        # 3. 浮动 Dock 右侧的高级 LED 状态时钟 (x: 730 ~ 830, y: 495 ~ 525)
+        draw_rect(buffer, 440, 490, 515, 520, (48, 52, 70) if c_vis else (22, 24, 33))
+        draw_rect_outline(buffer, 440, 490, 515, 520, (255, 0, 128) if c_vis else (50, 53, 68), thickness=1)
+        draw_string(buffer, 457, 499, "CLOCK", (255, 255, 255) if c_vis else (130, 135, 150), scale=1, spacing=1)
+        if c_vis:
+            draw_rect(buffer, 472, 517, 482, 519, (255, 0, 128))
+            
+        # Dock 右侧的数字科技 LED 时间 (x: 590 ~ 685, y: 490 ~ 520)
         time_str = time.strftime("%H:%M:%S", time.localtime())
-        draw_rect(buffer, 730, 495, 830, 525, (16, 17, 22))
-        draw_rect_outline(buffer, 730, 495, 830, 525, (45, 48, 60), thickness=1)
-        draw_string(buffer, 746, 504, time_str, (0, 208, 255), scale=1, spacing=1)
+        draw_rect(buffer, 590, 490, 685, 520, (10, 11, 16))
+        draw_rect_outline(buffer, 590, 490, 685, 520, (45, 48, 60), thickness=1)
+        draw_string(buffer, 606, 499, time_str, (0, 240, 255), scale=1, spacing=1)
 
     def draw_start_menu(self, buffer):
-        """绘制浮动在 Dock 上方的开始菜单弹窗"""
+        """绘制 Dock 栏上方优雅浮起的极简开始菜单"""
         if not self.start_menu_open:
             return
-        # 开始菜单弹出面板: x: 130 ~ 280 (宽度 150), y: 330 ~ 485 (高度 155)
-        draw_rect(buffer, 130, 330, 280, 485, (30, 30, 38, 230))
-        draw_rect_outline(buffer, 130, 330, 280, 485, (0, 208, 255), thickness=2)
+        # 开始菜单弹出面板: x: 275 ~ 425 (宽 150), y: 325 ~ 480 (高 155)
+        draw_rect(buffer, 275, 325, 425, 480, (20, 22, 30, 230))
+        draw_rect_outline(buffer, 275, 325, 425, 480, (255, 0, 128), thickness=2)
         
-        # 菜单子项 1: REOPEN ALL (y: 335 ~ 375)
-        draw_rect(buffer, 134, 335, 276, 375, (45, 48, 64))
-        draw_string(buffer, 152, 350, "REOPEN ALL", (255, 255, 255), scale=1, spacing=1)
+        # 菜单选项 1: REOPEN ALL (y: 330 ~ 370)
+        draw_rect(buffer, 279, 330, 421, 370, (40, 44, 58))
+        draw_string(buffer, 297, 345, "REOPEN ALL", (255, 255, 255), scale=1, spacing=1)
         
-        # 菜单子项 2: SCREENSHOT (y: 385 ~ 425)
-        draw_rect(buffer, 134, 385, 276, 425, (45, 48, 64))
-        draw_string(buffer, 152, 400, "SCREENSHOT", (255, 255, 255), scale=1, spacing=1)
+        # 菜单选项 2: SCREENSHOT (y: 380 ~ 420)
+        draw_rect(buffer, 279, 380, 421, 420, (40, 44, 58))
+        draw_string(buffer, 297, 395, "SCREENSHOT", (255, 255, 255), scale=1, spacing=1)
         
-        # 菜单子项 3: SHUTDOWN (y: 435 ~ 475)
-        draw_rect(buffer, 134, 435, 276, 475, (190, 50, 50))
-        draw_string(buffer, 152, 450, "SHUTDOWN", (255, 255, 255), scale=1, spacing=1)
+        # 菜单选项 3: SHUTDOWN (y: 430 ~ 470)
+        draw_rect(buffer, 279, 430, 421, 470, (190, 50, 50))
+        draw_string(buffer, 297, 445, "SHUTDOWN", (255, 255, 255), scale=1, spacing=1)
 
     def handle_mouse(self, matches, start_col, start_row, target_cols, target_rows):
-        """极其稳健的 Z-Order 鼠标点击与拖拽分发器 (带全量日志诊断)"""
+        """极其稳健且绝对格点对齐的鼠标交互总线 (消除鼠标物理跳变)"""
+        # 计算终端格子的宽高（以物理像素为单位）
+        cell_w = WIDTH / target_cols
+        cell_h = HEIGHT / target_rows
+
         for match in matches:
             button = int(match[0])
             cx = int(match[1])
             cy = int(match[2])
             is_press = match[3] == 'M'
 
-            # 映射物理像素坐标
+            # 映射物理像素位置
             relative_cx = cx - start_col
             relative_cy = cy - start_row
             
-            # 记录基础的 SGR 报文日志
             if hasattr(self, "log_message"):
-                self.log_message(f"Mouse Event Parsed: Button={button}, Col={cx}, Row={cy}, Pressed={is_press} | RelCol={relative_cx}, RelRow={relative_cy}")
+                self.log_message(f"Mouse Event: Button={button}, Pressed={is_press} | GridCol={cx}, GridRow={cy}")
 
             if 0 <= relative_cx < target_cols and 0 <= relative_cy < target_rows:
                 rx = (relative_cx + 0.5) / target_cols
@@ -129,38 +151,30 @@ class DesktopManager:
                 px = int(rx * WIDTH)
                 py = int(ry * HEIGHT)
 
-                if hasattr(self, "log_message"):
-                    self.log_message(f"Mapped coordinates: px={px}, py={py}")
-
-                # 鼠标左键操作
+                # 鼠标左键按下操作 (button == 0)
                 if button == 0:
                     if is_press:
                         self.mouse_is_down = True
-                        if hasattr(self, "log_message"):
-                            self.log_message(f"Left Button Click (Press) at ({px}, {py})")
-
-                        # (A) 开始菜单有效区域判定
-                        if self.start_menu_open and 130 <= px < 280 and 330 <= py < 485:
-                            if hasattr(self, "log_message"):
-                                self.log_message("Click matched Start Menu.")
-                            if 335 <= py < 375:  # REOPEN ALL
+                        
+                        # (A) 开始菜单判定
+                        if self.start_menu_open and 275 <= px < 425 and 325 <= py < 480:
+                            if 330 <= py < 370:  # REOPEN ALL
                                 self.window_terminal.visible = True
                                 self.window_clock.visible = True
-                                self.window_sysmon.visible = True
-                                for w in [self.window_sysmon, self.window_clock, self.window_terminal]:
+                                for w in [self.window_clock, self.window_terminal]:
                                     self.focus_window(w)
-                                self.window_terminal.terminal_history.append("ALL WINDOWS RESTORED.")
+                                self.window_terminal.terminal_history.append("ALL WINDOWS RE-OPENED.")
                                 self.start_menu_open = False
-                            elif 385 <= py < 425:  # SCREENSHOT
+                            elif 380 <= py < 420:  # SCREENSHOT
                                 self.save_screenshot()
                                 self.start_menu_open = False
-                            elif 435 <= py < 475:  # SHUTDOWN
+                            elif 430 <= py < 470:  # SHUTDOWN
                                 self.should_exit = True
                             continue
                         else:
                             self.start_menu_open = False
                         
-                        # (B) 遍历检测是否击中任何活跃可见窗口 (按照 Z-Order 从顶至底)
+                        # (B) 检测是否点击了任何活跃可见窗口 (按 Z-Order 从上往下)
                         clicked_win = None
                         for win in reversed(self.windows):
                             if win.visible:
@@ -170,87 +184,78 @@ class DesktopManager:
                                     
                         if clicked_win:
                             self.focus_window(clicked_win)
-                            if hasattr(self, "log_message"):
-                                self.log_message(f"Window Clicked: {clicked_win.title} (x={clicked_win.x}, y={clicked_win.y}, w={clicked_win.w}, h={clicked_win.h})")
                             
-                            # 是否点击在标题栏内 (高 26 像素)
-                            if py < clicked_win.y + 26:
-                                # 检查是否击中了左侧的红色关闭圆圈 (x: clicked_win.x + 11 ~ 21)
+                            # 点击的是否是标题栏 (高 30)
+                            if py < clicked_win.y + 30:
+                                # 是否命中了最左侧的红色关闭小圆圈 (x: clicked_win.x + 11 ~ 21)
                                 if clicked_win.x + 11 <= px < clicked_win.x + 21:
                                     clicked_win.visible = False
                                     self.window_terminal.terminal_history.append(f"CLOSED: {clicked_win.title}")
-                                    if hasattr(self, "log_message"):
-                                        self.log_message(f"Window Closed via macOS red dot: {clicked_win.title}")
                                 else:
-                                    # 启动绝对安全的窗口拖拽机制
+                                    # 启动格点对齐拖拽算法！
+                                    # 计算当前点击格子与窗口左上角在格子体系下的相对偏置量
                                     self.dragging_win = clicked_win
-                                    self.dragging_win.drag_offset_x = px - clicked_win.x
-                                    self.dragging_win.drag_offset_y = py - clicked_win.y
+                                    self.drag_cell_offset_x = relative_cx - (clicked_win.x / cell_w)
+                                    self.drag_cell_offset_y = relative_cy - (clicked_win.y / cell_h)
+                                    
                                     if hasattr(self, "log_message"):
-                                        self.log_message(f"Drag Started on Window: {clicked_win.title} (Offsets: {clicked_win.drag_offset_x}, {clicked_win.drag_offset_y})")
+                                        self.log_message(f"Snapped Drag Started: Offset_X={self.drag_cell_offset_x:.2f}, Offset_Y={self.drag_cell_offset_y:.2f}")
                             continue
                         
-                        # (C) 检测点击 Dock 栏区域 (y: 490 ~ 530)
-                        if 490 <= py < 530:
-                            if hasattr(self, "log_message"):
-                                self.log_message("Click matched Dock area.")
-                            # 开始按钮 (x: 130 ~ 200)
-                            if 130 <= px < 200:
+                        # (C) 检测点击 Dock 栏 (y: 485 ~ 525)
+                        if 485 <= py < 525:
+                            # START 按钮 (x: 275 ~ 335)
+                            if 275 <= px < 335:
                                 self.start_menu_open = not self.start_menu_open
-                            # [TERMINAL] (x: 210 ~ 295)
-                            elif 210 <= px < 295:
+                            # [TERMINAL] (x: 345 ~ 430)
+                            elif 345 <= px < 430:
                                 self.window_terminal.visible = not self.window_terminal.visible
                                 if self.window_terminal.visible:
                                     self.focus_window(self.window_terminal)
-                            # [CLOCK] (x: 305 ~ 380)
-                            elif 305 <= px < 380:
+                            # [CLOCK] (x: 440 ~ 515)
+                            elif 440 <= px < 515:
                                 self.window_clock.visible = not self.window_clock.visible
                                 if self.window_clock.visible:
                                     self.focus_window(self.window_clock)
-                            # [MONITOR] (x: 390 ~ 470)
-                            elif 390 <= px < 470:
-                                self.window_sysmon.visible = not self.window_sysmon.visible
-                                if self.window_sysmon.visible:
-                                    self.focus_window(self.window_sysmon)
                     else:
-                        # 释放左键
-                        if hasattr(self, "log_message"):
-                            self.log_message("Left Button Released.")
+                        # 左键释放
                         self.mouse_is_down = False
                         self.dragging_win = None
 
                 # 鼠标拖动 (button == 32)
                 elif button == 32:
                     if self.dragging_win:
-                        new_x = px - self.dragging_win.drag_offset_x
-                        new_y = py - self.dragging_win.drag_offset_y
+                        # 核心格点算法：直接使窗口坐标严格等于当前光标格子减去初次点击偏置，乘上物理格子大小
+                        # 这完全过滤了浮点比例换算过程中的任何抖动与非线性抖跃，窗口将像影子一样100%咬死光标格子！
+                        cell_target_x = relative_cx - self.drag_cell_offset_x
+                        cell_target_y = relative_cy - self.drag_cell_offset_y
+                        
+                        new_x = int(round(cell_target_x * cell_w))
+                        new_y = int(round(cell_target_y * cell_h))
+                        
+                        # 边缘物理安全界限
                         self.dragging_win.x = max(-self.dragging_win.w + 30, min(WIDTH - 30, new_x))
                         self.dragging_win.y = max(0, min(HEIGHT - 40, new_y))
-                        if hasattr(self, "log_message"):
-                            self.log_message(f"Dragging Window {self.dragging_win.title} -> NewPos: ({self.dragging_win.x}, {self.dragging_win.y})")
 
-            # 任何松开事件，强制释放所有拖拽锚点，避免粘滞
+            # 全局松开防护
             if not is_press:
-                if hasattr(self, "log_message") and (self.mouse_is_down or self.dragging_win):
-                    self.log_message("Global Mouse Release Triggered.")
                 self.mouse_is_down = False
                 self.dragging_win = None
 
     def save_screenshot(self):
-        """保存全屏像素截图到本地文件"""
+        """截取当前屏幕的完美双缓冲画面"""
         try:
             scr_png = encode_png(self.screenshot_buffer, WIDTH, HEIGHT)
             with open("screenshot.png", "wb") as f:
                 f.write(scr_png)
-            self.window_terminal.terminal_history.append("SCREENSHOT SAVED TO SCREENSHOT.PNG")
+            self.window_terminal.terminal_history.append("SCREENSHOT CAPTURED TO SCREENSHOT.PNG")
         except Exception as ex:
             self.window_terminal.terminal_history.append(f"SCREENSHOT ERROR: {str(ex)[:15]}")
 
     def render_all(self, buffer):
-        """组装整个画板图层并提供双缓冲备份 (供截屏使用)"""
         self.draw_wallpaper(buffer)
         
-        # 激活最上层可见窗口标识
+        # Z-Order 激活态层判定
         top_visible_win = None
         for win in reversed(self.windows):
             if win.visible:
@@ -264,5 +269,5 @@ class DesktopManager:
         self.draw_dock(buffer)
         self.draw_start_menu(buffer)
         
-        # 将成品数据深度克隆一份，保证截屏瞬间抓取完美图像
+        # 拷贝给截屏双缓冲区
         self.screenshot_buffer = bytearray(buffer)

@@ -7,7 +7,7 @@ import tty
 import termios
 
 from kitty_wm.engine import sgr_pattern, ansi_escape, encode_png, send_image_via_kitty, WIDTH, HEIGHT, BUFFER_SIZE
-from kitty_wm.apps import TerminalWindow, ClockWindow, SysmonWindow
+from kitty_wm.apps import TerminalWindow, ClockWindow
 from kitty_wm.desktop import DesktopManager
 
 # ==============================================================================
@@ -46,12 +46,9 @@ def start_desktop():
     
     # 指针数码时钟: x=560, y=70, w=340, h=210
     window_clock = ClockWindow("clock", "ANALOG DIGITAL CLOCK", 560, 70, 340, 210)
-    
-    # 负载性能监视器: x=280, y=340, w=400, h=170
-    window_sysmon = SysmonWindow("sysmon", "SYSTEM PERFORMANCE", 280, 330, 400, 170)
 
     # 桌面管理器实例化
-    desktop = DesktopManager(window_terminal, window_clock, window_sysmon)
+    desktop = DesktopManager(window_terminal, window_clock)
     # 将日志句柄挂载到 desktop，方便它记录鼠标轨迹
     desktop.log_message = log_message
     
@@ -62,8 +59,8 @@ def start_desktop():
         desktop.render_all(frame_buffer)
         
         while not desktop.should_exit:
-            # 性能监视器心跳数据更新
-            window_sysmon.update_stats()
+            # 移除了 performance 监视器心跳数据更新
+            pass
             
             # 3. 动态获取物理终端尺寸，执行 16:9 高清宽屏缩放算法
             try:
