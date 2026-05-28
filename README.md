@@ -4,9 +4,8 @@
 
 ## 🎬 演示视频 (Demo)
 
-<video src="demo.mp4" controls autoplay loop muted width="100%"></video>
+https://github.com/user-attachments/assets/21178e5b-ddb3-4f15-94a8-1dffffc23878
 
----
 
 ## 📂 核心功能与文件
 
@@ -15,7 +14,6 @@
 - **`pixel_cube.py`**：基于 Kitty 协议的高清 3D 线框立方体，支持 WASD/QE/IJKL 键盘实时调整相机位置与旋转。
 - **`cube.py`**：传统字符终端下的 ASCII 3D 线框立方体。
 
----
 
 ## 🚀 快速开始
 
