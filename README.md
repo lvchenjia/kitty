@@ -1,64 +1,45 @@
-# Kitty Terminal 3D Graphics Engine | 终端 3D 图形引擎
+# Kitty 🐱
 
-这是一个基于 **Kitty 终端图像协议 (Kitty Graphics Protocol)** 和传统字符终端的 **3D 实时渲染图形学项目**。
+一个基于 **Kitty 终端图形协议** 和传统字符终端的 **3D 实时渲染图形学与窗口管理器系统**。
 
-## 📂 文件清单及功能说明
+## 🎬 演示视频 (Demo)
 
-项目内的文件及具体功能如下：
-
-*   **`cube.py`**
-    *   **类型**：Python 脚本
-    *   **作用**：在传统终端中，使用 ASCII 字符（`█` 与空格）通过布雷森汉姆直线算法光栅化并显示一个旋转的 3D 线框立方体。
-
-*   **`pixel_cube.py`**
-    *   **类型**：Python 脚本
-    *   **作用**：基于 Kitty 终端图像协议的高清 3D 线框立方体渲染程序。支持通过键盘实时调整相机位置（WASD/QE 键进行三维平移）和旋转角度（IJKL/UO 键进行三维旋转）。
-
-*   **`pixel_donut.py`**
-    *   **类型**：Python 脚本
-    *   **作用**：基于 Kitty 终端图像协议的 3D 光影甜甜圈（Torus）渲染程序。通过纯 Python 自建的 PNG-zlib 压缩引擎，在终端上以约 30 FPS 渲染具有素描明暗灰阶的 3D 甜甜圈。
-
-*   **`pixel_donut.c`**
-    *   **类型**：C 语言源文件
-    *   **作用**：高性能 C 语言版本的 3D 甜甜圈渲染程序。利用系统级 `zlib` 物理压缩及 Base64 编码，实现流畅稳定的 60 FPS 渲染。内置双光源半兰伯特、Blinn-Phong 镜面高光和菲涅尔边缘光，支持按**空格键**在 **电影级黏土 (Clay)** 和 **水晶玻璃 (Glass)** 双材质之间实时切换。
-
-*   **`interactive_gui.py`**
-    *   **类型**：Python 脚本
-    *   **作用**：基于 Kitty 终端图像协议与 SGR 鼠标追踪协议的**图形化窗口桌面与窗口管理器系统 (KittyWM)**。支持用鼠标实时**拖拽移动窗口标题栏**来调整位置、点击 `[X]` 关闭窗口、点击不同窗口**提焦激活**。内置三大独立虚拟应用窗口：
-        *   **时钟窗口**：实时数码时钟，配合使用三角函数与布雷森汉姆算法实时绘制的指针式模拟钟盘（时针、分针、秒针每秒摆动）。
-        *   **终端控制台**：可在该窗口聚焦后，使用键盘输入直接敲打命令（支持 `HELP`、`LS`、`NEOFETCH`、`CLEAR`、`CLOCK` 重新开启时钟窗口、以及 `EXIT` 退出）。
-        *   **性能监视器**：基于随机漫步原理实时滚动展示 CPU 负载图表曲线，并呈现 RAM 资源进度指示条。
-        *   **系统任务栏与开始菜单**：包含任务栏时钟、窗口最小化快捷显示按钮、以及可点击展开的 `START` 菜单，支持 **REOPEN ALL (恢复所有窗口)**、**SCREENSHOT (直接截图整个桌面并保存为 screenshot.png)** 与 **SHUTDOWN (系统关机)**。
-
-*   **`.gitignore`**
-    *   **类型**：Git 配置文件
-    *   **作用**：配置 Git 忽略编译生成的二进制文件 `pixel_donut`、macOS 系统残留 `.DS_Store` 以及 Python 缓存目录 `__pycache__/`。
+<video src="demo.mp4" controls autoplay loop muted width="100%"></video>
 
 ---
 
-## 🚀 快速运行与编译
+## 📂 核心功能与文件
 
-### 1. 运行 Python 文件（零依赖）
+- **`interactive_gui.py`**：基于 Kitty 图像与鼠标追踪协议的**图形化桌面与窗口管理器 (KittyWM)**。包含时钟、交互式终端控制台、性能监视器、任务栏及开始菜单，支持窗口鼠标拖拽、聚焦与关闭。
+- **`pixel_donut.c` / `pixel_donut.py`**：基于 Kitty 协议的 3D 光影甜甜圈。C 语言版本支持 **电影级黏土** 和 **水晶玻璃** 双材质切换（按空格键），能以 60 FPS 流畅渲染。
+- **`pixel_cube.py`**：基于 Kitty 协议的高清 3D 线框立方体，支持 WASD/QE/IJKL 键盘实时调整相机位置与旋转。
+- **`cube.py`**：传统字符终端下的 ASCII 3D 线框立方体。
+
+---
+
+## 🚀 快速开始
+
+> ⚠️ **注意**：除字符版 `cube.py` 外，像素级渲染及窗口管理器均需要使用支持 **Kitty 图像协议** 的终端（例如 [Kitty](https://sw.kovidgoyal.net/kitty/), [WezTerm](https://wezfurlong.org/wezterm/), [Ghostty](https://ghostty.org/) 等）来运行，否则会显示 Base64 乱码。
+
+### 1. 启动桌面窗口管理器 (KittyWM)
 ```bash
-# 运行图形化窗口管理器系统 (KDE/KittyWM)
 python3 interactive_gui.py
-
-# 运行字符版立方体
-python3 cube.py
-
-# 运行交互像素级立方体 (需支持 Kitty 协议的终端，如 Kitty, WezTerm)
-python3 pixel_cube.py
-
-# 运行像素级甜甜圈 (需支持 Kitty 协议的终端)
-python3 pixel_donut.py
 ```
 
-### 2. 编译并运行高性能 C 版本
+### 2. 编译并运行高性能 C 版甜甜圈
 ```bash
-# 编译 (链接数学库与 zlib 库)
+# 编译
 gcc -O3 pixel_donut.c -o pixel_donut -lm -lz
 
 # 运行
 ./pixel_donut
 ```
-*(注：所有像素级及交互式图形程序 `pixel_` / `interactive_` 均需在 Kitty、WezTerm、Ghostty 等支持 Kitty 图像协议的终端下运行，否则可能会显示 Base64 乱码。)*
+
+### 3. 运行其他 Python 图形脚本
+```bash
+# 像素级 3D 甜甜圈 (Python 版)
+python3 pixel_donut.py
+
+# 像素级 3D 立方体 (支持键盘交互)
+python3 pixel_cube.py
+```
