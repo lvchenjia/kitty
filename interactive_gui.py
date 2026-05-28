@@ -146,7 +146,10 @@ def draw_line(buffer, x0, y0, x1, y1, color):
     while True:
         if 0 <= x0 < WIDTH and 0 <= y0 < HEIGHT:
             idx = (y0 * WIDTH + x0) * 4
-            buffer[idx:idx+4] = color
+            buffer[idx]     = color[0]
+            buffer[idx+1]   = color[1]
+            buffer[idx+2]   = color[2]
+            buffer[idx+3]   = 255 if len(color) < 4 else color[3]
 
         if x0 == x1 and y0 == y1:
             break
