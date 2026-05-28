@@ -13,7 +13,23 @@ from kitty_wm.desktop import DesktopManager
 # ==============================================================================
 # 🚀 KDE/KittyWM 桌面系统主引擎启动口
 # ==============================================================================
-def start_desktop():
+    # 清空并初始化日志文件
+    log_path = "/Users/horse/Desktop/kitty/kitty_wm.log"
+    try:
+        with open(log_path, "w") as f:
+            f.write(f"=== KITTYWM SYSTEM LOG START (LOCAL TIME: {time.strftime('%Y-%m-%d %H:%M:%S')}) ===\n")
+    except:
+        pass
+
+    def log_message(msg):
+        try:
+            with open(log_path, "a") as f:
+                f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+        except:
+            pass
+
+    log_message("System initialized. 16:9 canvas (960x540) active.")
+
     # 1. 全屏清屏，隐藏光标，开启 SGR 鼠标捕获
     sys.stdout.write("\033[?25l\033[2J\033[H")
     sys.stdout.write("\033[?1002h\033[?1006h")  # 只捕获 1002 (拖拽) 与 1006 (SGR 编码)
@@ -35,6 +51,8 @@ def start_desktop():
 
     # 桌面管理器实例化
     desktop = DesktopManager(window_terminal, window_clock, window_sysmon)
+    # 将日志句柄挂载到 desktop，方便它记录鼠标轨迹
+    desktop.log_message = log_message
     
     frame_buffer = bytearray(BUFFER_SIZE)
 
@@ -66,21 +84,17 @@ def start_desktop():
             start_row = 3
             start_col = max(1, (columns - target_cols) // 2)
 
-            # 4. 非阻塞轮询监听标准输入 (仅睡眠 20ms，保持 50 FPS 水平响应，0% CPU 空转)
+            # 4. 极致稳定的 UNIX 非阻塞 os.read 读取方式 (防转义码切碎)
             rlist, _, _ = select.select([sys.stdin], [], [], 0.02)
             
             raw_input_data = ""
             if rlist:
-                raw_input_data = sys.stdin.read(1)
-                if raw_input_data == '\x1b':
-                    seq = '\x1b'
-                    # 合适的缓冲区时延，保护复杂转义码在流传输中保持原子连续性
-                    while select.select([sys.stdin], [], [], 0.005)[0]:
-                        seq += sys.stdin.read(1)
-                    raw_input_data = seq
-                else:
-                    while select.select([sys.stdin], [], [], 0.0)[0]:
-                        raw_input_data += sys.stdin.read(1)
+                try:
+                    # 一次性读出内核缓冲区中所有已达字节，不进行任何延时等待，完美保证转义帧的原子完整性
+                    raw_input_data = os.read(fd, 4096).decode('utf-8', errors='ignore')
+                    log_message(f"Raw Stdin Bytes: {repr(raw_input_data)}")
+                except Exception as ex:
+                    log_message(f"os.read Error: {str(ex)}")
 
             # 5. 键盘物理退出监听 ('q', 'Q' 或 Ctrl+C)
             if raw_input_data:

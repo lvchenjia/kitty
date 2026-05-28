@@ -107,7 +107,7 @@ class DesktopManager:
         draw_string(buffer, 152, 450, "SHUTDOWN", (255, 255, 255), scale=1, spacing=1)
 
     def handle_mouse(self, matches, start_col, start_row, target_cols, target_rows):
-        """极其稳健的 Z-Order 鼠标点击与拖拽分发器 (修复释放和拖拽逻辑)"""
+        """极其稳健的 Z-Order 鼠标点击与拖拽分发器 (带全量日志诊断)"""
         for match in matches:
             button = int(match[0])
             cx = int(match[1])
@@ -118,6 +118,10 @@ class DesktopManager:
             relative_cx = cx - start_col
             relative_cy = cy - start_row
             
+            # 记录基础的 SGR 报文日志
+            if hasattr(self, "log_message"):
+                self.log_message(f"Mouse Event Parsed: Button={button}, Col={cx}, Row={cy}, Pressed={is_press} | RelCol={relative_cx}, RelRow={relative_cy}")
+
             if 0 <= relative_cx < target_cols and 0 <= relative_cy < target_rows:
                 rx = (relative_cx + 0.5) / target_cols
                 ry = (relative_cy + 0.5) / target_rows
@@ -125,13 +129,20 @@ class DesktopManager:
                 px = int(rx * WIDTH)
                 py = int(ry * HEIGHT)
 
-                # 鼠标左键按下 (button == 0)
+                if hasattr(self, "log_message"):
+                    self.log_message(f"Mapped coordinates: px={px}, py={py}")
+
+                # 鼠标左键操作
                 if button == 0:
                     if is_press:
                         self.mouse_is_down = True
-                        
-                        # (A) 开始菜单有效交互判定
+                        if hasattr(self, "log_message"):
+                            self.log_message(f"Left Button Click (Press) at ({px}, {py})")
+
+                        # (A) 开始菜单有效区域判定
                         if self.start_menu_open and 130 <= px < 280 and 330 <= py < 485:
+                            if hasattr(self, "log_message"):
+                                self.log_message("Click matched Start Menu.")
                             if 335 <= py < 375:  # REOPEN ALL
                                 self.window_terminal.visible = True
                                 self.window_clock.visible = True
@@ -147,10 +158,9 @@ class DesktopManager:
                                 self.should_exit = True
                             continue
                         else:
-                            # 只要在菜单外点击，即自动合上菜单
                             self.start_menu_open = False
                         
-                        # (B) 遍历检测是否击中任何活跃可见窗口
+                        # (B) 遍历检测是否击中任何活跃可见窗口 (按照 Z-Order 从顶至底)
                         clicked_win = None
                         for win in reversed(self.windows):
                             if win.visible:
@@ -159,8 +169,9 @@ class DesktopManager:
                                     break
                                     
                         if clicked_win:
-                            # 提升堆栈至最前方
                             self.focus_window(clicked_win)
+                            if hasattr(self, "log_message"):
+                                self.log_message(f"Window Clicked: {clicked_win.title} (x={clicked_win.x}, y={clicked_win.y}, w={clicked_win.w}, h={clicked_win.h})")
                             
                             # 是否点击在标题栏内 (高 26 像素)
                             if py < clicked_win.y + 26:
@@ -168,15 +179,21 @@ class DesktopManager:
                                 if clicked_win.x + 11 <= px < clicked_win.x + 21:
                                     clicked_win.visible = False
                                     self.window_terminal.terminal_history.append(f"CLOSED: {clicked_win.title}")
+                                    if hasattr(self, "log_message"):
+                                        self.log_message(f"Window Closed via macOS red dot: {clicked_win.title}")
                                 else:
                                     # 启动绝对安全的窗口拖拽机制
                                     self.dragging_win = clicked_win
                                     self.dragging_win.drag_offset_x = px - clicked_win.x
                                     self.dragging_win.drag_offset_y = py - clicked_win.y
+                                    if hasattr(self, "log_message"):
+                                        self.log_message(f"Drag Started on Window: {clicked_win.title} (Offsets: {clicked_win.drag_offset_x}, {clicked_win.drag_offset_y})")
                             continue
                         
                         # (C) 检测点击 Dock 栏区域 (y: 490 ~ 530)
                         if 490 <= py < 530:
+                            if hasattr(self, "log_message"):
+                                self.log_message("Click matched Dock area.")
                             # 开始按钮 (x: 130 ~ 200)
                             if 130 <= px < 200:
                                 self.start_menu_open = not self.start_menu_open
@@ -197,20 +214,25 @@ class DesktopManager:
                                     self.focus_window(self.window_sysmon)
                     else:
                         # 释放左键
+                        if hasattr(self, "log_message"):
+                            self.log_message("Left Button Released.")
                         self.mouse_is_down = False
                         self.dragging_win = None
 
-                # 鼠标左键拖动 (button == 32)
+                # 鼠标拖动 (button == 32)
                 elif button == 32:
                     if self.dragging_win:
                         new_x = px - self.dragging_win.drag_offset_x
                         new_y = py - self.dragging_win.drag_offset_y
-                        # 限制拖拽界限，防止整个窗口被甩出屏幕死角
                         self.dragging_win.x = max(-self.dragging_win.w + 30, min(WIDTH - 30, new_x))
                         self.dragging_win.y = max(0, min(HEIGHT - 40, new_y))
+                        if hasattr(self, "log_message"):
+                            self.log_message(f"Dragging Window {self.dragging_win.title} -> NewPos: ({self.dragging_win.x}, {self.dragging_win.y})")
 
-            # 任何非按下事件 (松开)，强制释放拖拽锚点，避免粘滞
+            # 任何松开事件，强制释放所有拖拽锚点，避免粘滞
             if not is_press:
+                if hasattr(self, "log_message") and (self.mouse_is_down or self.dragging_win):
+                    self.log_message("Global Mouse Release Triggered.")
                 self.mouse_is_down = False
                 self.dragging_win = None
 
