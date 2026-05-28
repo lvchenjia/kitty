@@ -13,6 +13,7 @@ from kitty_wm.desktop import DesktopManager
 # ==============================================================================
 # 🚀 KDE/KittyWM 桌面系统主引擎启动口
 # ==============================================================================
+def start_desktop():
     # 清空并初始化日志文件
     log_path = "/Users/horse/Desktop/kitty/kitty_wm.log"
     try:
